@@ -6,7 +6,7 @@ This is an example of a simple implementation of a UDP packet parser utilizing S
 
 - **Header Parsing:** Extracts source port, destination port and payload length from UDP header.
 - **Port Filtering:** Only forwards payload packets matching the configured target port.
-- **Performance Monitoring:** Propietary cycle counter to measure processing latency and efficiency.
+
 
 ## Architecutre
 
@@ -37,15 +37,15 @@ The design consists of five main modules :
 
     Manages payload byte forwarding
 
-    - Generates payload bytes when enabled
-    - Generates `payload_last` signal for final payload byte.
+    - Forwards payload bytes when enabled
 
-5. `cycle_counter`
+5. `packet_byte_counter`
+   
+   Handles payload_last signal.
 
-    Measures performance of whole pipelined design
-
-    - Counts clock cycles from first byte to last byte parsed.
-    - Latches final count when whole packet successfully parsed.
+6. `udp_parser_synth_top`
+   
+   Top level file for Synthesis. 
 
 ## Top level signals
 ###  Inputs
@@ -116,9 +116,12 @@ Bytes 8-N: Payload data
 |   |--cycle_counter.sv
 |   |--udp_header_parser.sv
 |   |--udp_parser_top.sv
+|   |--packet_byte_counter.sv
 |
 |---sim/
 |   |-udp_parser_TB.sv
 |
 |---README.md
-```
+|
+|---constraints/
+|   |-constraints.xdc
