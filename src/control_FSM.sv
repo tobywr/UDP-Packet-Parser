@@ -4,15 +4,14 @@ module control_FSM (
     input logic rst_n,
 
     input logic data_valid_in,
-    input logic last_in,
+    input logic packet_last,
+    input logic packet_start,
 
     input logic header_done,
-
     input logic port_match,
     input logic checksum_ok,
 
     output logic parse_enable,  // start capturing input bytes into header
-    output logic latch_outputs, //pulse to latch header outputs
 
     output logic fwd_enable,  //enable forwarding of payload bytes
     output logic drop_enable, //enable dropping of payload bytes
@@ -25,7 +24,6 @@ module control_FSM (
   typedef enum logic [2:0] {
     IDLE,             //waiting for new packet first byte
     PARSING_HEADER,   //recieving + parsing header
-    LATCHING_HEADER,  //wait one cycle for header outputs to become valid
     CHECK_HEADER,     //header is done, check if OK (checksum, port match)
     FORWARD_PAYLOAD,  //forward payload bytes
     DROP_PAYLOAD      //dispose of payload silently
@@ -48,20 +46,18 @@ module control_FSM (
 
     case (current_state)
       IDLE: begin
-        if (data_valid_in) begin
+        if (packet_start) begin
           next_state = PARSING_HEADER;  //packet has started
+          parse_enable = 1'b1;
         end
       end
 
       PARSING_HEADER: begin
         //check if we've got all 8-byte header
+        parse_enable = 1'b1;
         if (header_done) begin
-          next_state = LATCHING_HEADER;
+          next_state = CHECK_HEADER;
         end
-      end
-
-      LATCHING_HEADER: begin
-        next_state = CHECK_HEADER;
       end
 
       CHECK_HEADER: begin
@@ -75,14 +71,14 @@ module control_FSM (
 
       FORWARD_PAYLOAD: begin
         next_state = FORWARD_PAYLOAD;
-        if (last_in && data_valid_in) begin
+        if (packet_last && data_valid_in) begin
           next_state = IDLE;
         end
       end
 
       DROP_PAYLOAD: begin
         next_state = DROP_PAYLOAD;
-        if (last_in && data_valid_in) begin
+        if (packet_last && data_valid_in) begin
           next_state = IDLE;
         end
       end
@@ -90,18 +86,13 @@ module control_FSM (
     endcase
   end
 
-  //control signals for Header Parser:
-  assign parse_enable = (current_state == IDLE) || (data_valid_in == 1'd1);
-  assign latch_outputs = (current_state == LATCHING_HEADER);
 
   //control signals for payload forwarder:
-  assign fwd_enable = (current_state == FORWARD_PAYLOAD) || (current_state == CHECK_HEADER && checksum_ok && port_match);
+  assign fwd_enable = (next_state == FORWARD_PAYLOAD);
   assign drop_enable = (current_state == DROP_PAYLOAD);
 
   //control signals for counters:
   assign counter_rst = (current_state == IDLE);  //reset counter when idle
   //enable counter when processing data in any state
-  assign counter_enable = ((current_state == PARSING_HEADER) ||
-                          (current_state == FORWARD_PAYLOAD) ||
-                          (current_state == DROP_PAYLOAD)) && data_valid_in;
+  assign counter_enable = (data_valid_in && current_state != IDLE);
 endmodule
