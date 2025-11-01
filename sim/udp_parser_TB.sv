@@ -16,7 +16,7 @@ module udp_parser_test;
   logic [15:0] dst_port;
   logic [15:0] length;
   logic header_done;
-  logic [15:0] latched_cycle_count;
+  logic packet_start;
 
   //generate clock
   parameter CLK_PERIOD = 10;  //10ns = 100MHz
@@ -58,19 +58,30 @@ module udp_parser_test;
     data_in = '0;
     data_valid_in = '0;
     ready_in = 1;
+    packet_start = 0;
     @(posedge clk);
     rst_n = '1;
-    @(posedge clk);
+    repeat(5) begin 
+    @(posedge clk); //wait for logic to settle.
+    end
     //driving data packet using a loop.
     $display("Driving data packet");
-    foreach (packet[i]) begin
-      data_in = packet[i];
-      data_valid_in = 1;
-      @(posedge clk);
+    packet_start = 1;
+    @(posedge clk);
+    data_valid_in = 1;
+    data_in = packet[0];
+    packet_start = 0;
+    @(posedge clk);
+    for (int i = 1; i < packet.size(); i++) begin
+        data_in = packet[i];
+        data_valid_in = 1;
+        while(!ready_out) begin
+            @(posedge clk);
+        end
+        @(posedge clk);
     end
     data_valid_in = 0;
 
-    wait (payload_last == 1);
     @(posedge clk);
     $display("");
     $display("Test finished");
@@ -79,8 +90,6 @@ module udp_parser_test;
     $display("Destination Port = %0d", dst_port);
     $display("Length = %0d", length);
     @(posedge clk);
-    $display("Cycle count = %0d", latched_cycle_count);
-    //display the payload string.
     $display("Finished.");
     $finish;
   end
