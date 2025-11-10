@@ -14,7 +14,6 @@ module udp_parser_synth_top (
     output logic [15:0] dst_port,
     output logic header_done
 );
-  // Just instantiate your DUT — no cycle_counter, no debug
   udp_parser_top u (
     .clk(clk),
     .rst_n(rst_n),
