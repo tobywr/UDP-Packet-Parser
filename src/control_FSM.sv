@@ -14,11 +14,7 @@ module control_FSM (
     output logic parse_enable,  // start capturing input bytes into header
 
     output logic fwd_enable,  //enable forwarding of payload bytes
-    output logic drop_enable, //enable dropping of payload bytes
-
-    output logic counter_rst,    //reset all counters
-    output logic counter_enable  //incrament main packet byte counter
-
+    output logic drop_enable //enable dropping of payload bytes
 );
 
   typedef enum logic [2:0] {
@@ -43,10 +39,12 @@ module control_FSM (
   always_comb begin
     //default
     next_state = current_state;
+    parse_enable = '0;
+
 
     case (current_state)
       IDLE: begin
-        if (packet_start) begin
+        if (packet_start && data_valid_in) begin
           next_state = PARSING_HEADER;  //packet has started
           parse_enable = 1'b1;
         end
@@ -71,14 +69,14 @@ module control_FSM (
 
       FORWARD_PAYLOAD: begin
         next_state = FORWARD_PAYLOAD;
-        if (packet_last && data_valid_in) begin
+        if (packet_last) begin
           next_state = IDLE;
         end
       end
 
       DROP_PAYLOAD: begin
         next_state = DROP_PAYLOAD;
-        if (packet_last && data_valid_in) begin
+        if (packet_last) begin
           next_state = IDLE;
         end
       end
@@ -89,10 +87,6 @@ module control_FSM (
 
   //control signals for payload forwarder:
   assign fwd_enable = (next_state == FORWARD_PAYLOAD);
-  assign drop_enable = (current_state == DROP_PAYLOAD);
+  assign drop_enable = (next_state == DROP_PAYLOAD);
 
-  //control signals for counters:
-  assign counter_rst = (current_state == IDLE);  //reset counter when idle
-  //enable counter when processing data in any state
-  assign counter_enable = (data_valid_in && current_state != IDLE);
 endmodule

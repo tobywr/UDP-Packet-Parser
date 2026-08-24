@@ -5,7 +5,6 @@ module udp_header_parser (
     //data input stream
     input  logic [ 7:0] data_in,
     input  logic        data_valid,
-    input  logic        ready_out,
     input  logic [15:0] target_port,
     //control interface (from FSM)
     input  logic        parse_enable,

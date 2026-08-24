@@ -20,6 +20,7 @@ module payload_forwarder (
     output logic [7:0] payload_data_out,
     output logic       payload_valid_out,
     output logic       payload_last,
+    output logic       packet_done,
     input  logic       ready_in
 );
 
@@ -42,7 +43,7 @@ module payload_forwarder (
         target_count <= 16'd0;
         length_valid <= 1'b0;
       end
-    end else if (!fwd_enable) begin
+    end else if (!fwd_enable && !drop_enable) begin
       length_valid <= 1'b0;  // clear when not forwarding
     end
   end
@@ -52,7 +53,7 @@ module payload_forwarder (
   logic [15:0] payload_byte_counter_next;
   logic        counter_enable;
 
-  assign counter_enable = data_valid_in && ready_out && fwd_enable;
+  assign counter_enable = data_valid_in && ready_out && (fwd_enable || drop_enable);
 
   always_comb begin
     if (length_valid && payload_byte_counter < target_count)
@@ -62,7 +63,7 @@ module payload_forwarder (
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) payload_byte_counter <= 16'd0;
-    else if (!fwd_enable) payload_byte_counter <= 16'd0;
+    else if (!fwd_enable && !drop_enable) payload_byte_counter <= 16'd0;
     else if (counter_enable) payload_byte_counter <= payload_byte_counter_next;
   end
 
@@ -71,15 +72,16 @@ module payload_forwarder (
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) payload_last_reg <= 1'b0;
-    else if (!fwd_enable) payload_last_reg <= 1'b0;
+    else if (!fwd_enable && !drop_enable) payload_last_reg <= 1'b0;
     else if (counter_enable)
-      payload_last_reg <= length_valid && (payload_byte_counter == target_count);
+      payload_last_reg <= length_valid && (payload_byte_counter_next == target_count);
   end
 
   //output assignments
   assign payload_data_out  = data_in;
   assign payload_valid_out = data_valid_in && fwd_enable && ready_in;
   assign ready_out         = drop_enable || (fwd_enable ? ready_in : 1'b1);
-  assign payload_last      = payload_last_reg;
+  assign payload_last      = fwd_enable && length_valid && (payload_byte_counter_next == target_count);
+  assign packet_done = payload_last_reg;
 
 endmodule
