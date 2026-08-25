@@ -43,8 +43,6 @@ module payload_forwarder (
         target_count <= 16'd0;
         length_valid <= 1'b0;
       end
-    end else if (!fwd_enable && !drop_enable) begin
-      length_valid <= 1'b0;  // clear when not forwarding
     end
   end
 
@@ -78,10 +76,10 @@ module payload_forwarder (
   end
 
   //output assignments
-  assign payload_data_out  = data_in;
+  assign payload_data_out = data_in;
   assign payload_valid_out = data_valid_in && fwd_enable && ready_in;
-  assign ready_out         = drop_enable || (fwd_enable ? ready_in : 1'b1);
-  assign payload_last      = fwd_enable && length_valid && (payload_byte_counter_next == target_count);
+  assign ready_out = drop_enable || (fwd_enable ? ready_in : 1'b1);
+  assign payload_last = payload_valid_out && length_valid && (payload_byte_counter_next == target_count);
   assign packet_done = payload_last_reg;
 
 endmodule

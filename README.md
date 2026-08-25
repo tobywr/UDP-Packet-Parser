@@ -1,4 +1,4 @@
-# UDP-Packet-Parser
+# UDP-Packet-Parser with Axi-Stream ports
 
 This is an example of a simple implementation of a UDP packet parser utilizing SystemVerilog. This design parses UDP headers, validates the packet based on checksum (WIP) and destination port, and forwards / drops payloads.
 
@@ -8,18 +8,18 @@ This is an example of a simple implementation of a UDP packet parser utilizing S
 - **Port Filtering:** Only forwards payload packets matching the configured target port.
 
 
-## Architecutre
+## Architecture
 
-The design consists of five main modules :
+The design consists of four main modules :
 
 1. `udp_parser_top`
    
-   Top-Level module for instantiating and connecting all sub-modules.
+   Top-Level module for instantiating and connecting all sub-modules. Contains Axi-Stream top ports.
 
 2. `control_FSM`
 
     FSM controlling packet pipeline:
-    - `IDLE` : Waiting or packet
+    - `IDLE` : Waiting for packet
     - `PARSING_HEADER` : Recieving + Parsing 8-Byte UDP header
     - `CHECK_HEADER` : Validating port match
     - `FORWARD_PAYLOAD` : Streaming valid payload bytes
@@ -39,56 +39,49 @@ The design consists of five main modules :
 
     - Forwards payload bytes when enabled
 
-5. `packet_byte_counter`
-   
-   Handles payload_last signal.
-
-6. `udp_parser_synth_top`
-   
-   Top level file for Synthesis. 
 
 ## Top level signals
-###  Inputs
+### Inputs
 
 - `clk` : System clock
-- `rst_n` : Active high reset signal.
-- `targe_port` : pre-defined destination port for packet data. (16-bit)
-- `data_in` : UDP packet input data stream. (8-bit)
-- `data_valid_in` : Input data valid singal.
-- `ready_in` : Downstream ready signal.
+- `rst_n` : Active-low reset signal.
+- `target_port` : pre-defined destination port for packet data. (16-bit)
+- `s_axis_tdata` : UDP packet input data stream. (8-bit)
+- `s_axis_tvalid` : Input data valid signal.
+- `m_axis_tready` : Downstream ready signal.
+- `s_axis_tuser` : start of frame / packet start signal
 
 ### Outputs
 
-- `ready_out` : Ready to accept input data.
-- `payload_data_out` : Parsed payload data (8-bit)
-- `payload_valid_out` : Signal to state that payload data is correct.
-- `payload_last` : Asserted on last byte of payload being parsed.
+- `m_axis_tdata` : Parsed payload data (8-bit)
+- `m_axis_tvalid` : Signal to state that payload data is correct.
+- `m_axis_tlast` : Asserted on last byte of payload being parsed.
 - `src_port` : Source port of data. (16-bit)
 - `dst_port` : Destination port of data. (16-bit)
 - `length` : Length of the payload data (16-bit)
 - `header_done` : Asserted once header has been parsed
-- `latched_cycle_count` : Cycle count of entire process. (16-bit)    
+- `s_axis_tready` : backpressure signal to upstream
 
-## Simulation
+## Simulation (Python CocoTB)
 
-This Repo contains a SystemVerilog test bench (`udp_parser_TB.sv`) that : 
-- Generates a test UDP packet with "TEST TEST" payload
-- Configures target port to 1234
-- Drives packet through the parser
-- displays recieved payload and performance metrics in console.
+This repo also contains a python testbench using cocotb that:
+- Generates single udp packet
+- Validates backpressure
+- Validates a zero-length payload produces no output
+- Validates packets are dropped if the ports do not match
+It utilses a golden model (`model.py`) to compare the output from the DUT against.
 
-### Expected Output
+### How to run CocoTB testbench
+Only tested on linux (Ubuntu) so far.
 
-```
-Driving data packet
-TEST TEST
-Test finished
-Source Port = 49152
-Destination Port = 1234
-Length = 17
-Cycle count = 17
-Finished.
-```
+1. Clone repo to a working directory.
+2. Install all dependancies : cocotb `pip install cocotb`, Icarus Verilog (simulator) `sudo apt install iverilog`, make, (optional) GTKWave for waveform viewing `sudo apt install gtkwave`.
+3. enter the tb/ directory
+4. run `make SIM=icarus` to compile all and run.
+OPTIONAL: waveform viewing:
+1. run `make SIM=icarus WAVES=1`
+2. view wave with `gtkwave sim_build/udp_parser_top.fst`
+
 
 ### Packet Format
 
@@ -102,8 +95,6 @@ Bytes 8-N: Payload data
 
 ### Current Limitations
 - Checksum validation currently not implemented , hardcoded to pass (`checksum_ok = 1'b1`)
-- Single packet processing (No concurrent packet handling)
-- `ready_in` is hardcoded to `1'b1`.
 
 
 ## Project Structure
@@ -113,13 +104,17 @@ Bytes 8-N: Payload data
 |---src/
 |   |--payload_forwarder.sv
 |   |--control_FSM.sv
-|   |--cycle_counter.sv
 |   |--udp_header_parser.sv
 |   |--udp_parser_top.sv
-|   |--packet_byte_counter.sv
 |
 |---sim/
 |   |-udp_parser_TB.sv
+|
+|---tb/
+|   |-Makefile
+|   |-model.py
+|   |-test_udp_parser.py
+|   |-udp_env.py   
 |
 |---README.md
 |

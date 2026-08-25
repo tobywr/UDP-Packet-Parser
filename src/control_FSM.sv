@@ -14,7 +14,7 @@ module control_FSM (
     output logic parse_enable,  // start capturing input bytes into header
 
     output logic fwd_enable,  //enable forwarding of payload bytes
-    output logic drop_enable //enable dropping of payload bytes
+    output logic drop_enable  //enable dropping of payload bytes
 );
 
   typedef enum logic [2:0] {
@@ -38,55 +38,55 @@ module control_FSM (
 
   always_comb begin
     //default
-    next_state = current_state;
+    next_state   = current_state;
     parse_enable = '0;
 
+    if (packet_start && data_valid_in) begin
+      next_state   = PARSING_HEADER;
+      parse_enable = 1'b1;
+    end else begin
+      case (current_state)
+        IDLE: begin
+          //packet start handled above.
+        end
 
-    case (current_state)
-      IDLE: begin
-        if (packet_start && data_valid_in) begin
-          next_state = PARSING_HEADER;  //packet has started
+        PARSING_HEADER: begin
+          //check if we've got all 8-byte header
           parse_enable = 1'b1;
+          if (header_done) begin
+            next_state = CHECK_HEADER;
+          end
         end
-      end
 
-      PARSING_HEADER: begin
-        //check if we've got all 8-byte header
-        parse_enable = 1'b1;
-        if (header_done) begin
-          next_state = CHECK_HEADER;
+        CHECK_HEADER: begin
+          // check if port is correct + checksum
+          if (checksum_ok && port_match) begin
+            next_state = FORWARD_PAYLOAD;
+          end else begin
+            next_state = DROP_PAYLOAD;  //drop if either check fails. (ports wrong or data is corrupt)
+          end
         end
-      end
 
-      CHECK_HEADER: begin
-        // check if port is correct + checksum
-        if (checksum_ok && port_match) begin
-          next_state = FORWARD_PAYLOAD;
-        end else begin
-          next_state = DROP_PAYLOAD;  //drop if either check fails. (ports wrong or data is corrupt)
+        FORWARD_PAYLOAD: begin
+          if (packet_last) begin
+            next_state = IDLE;
+          end
         end
-      end
 
-      FORWARD_PAYLOAD: begin
-        next_state = FORWARD_PAYLOAD;
-        if (packet_last) begin
-          next_state = IDLE;
+        DROP_PAYLOAD: begin
+          if (packet_last) begin
+            next_state = IDLE;
+          end
         end
-      end
 
-      DROP_PAYLOAD: begin
-        next_state = DROP_PAYLOAD;
-        if (packet_last) begin
-          next_state = IDLE;
-        end
-      end
-      default: next_state = IDLE;
-    endcase
+        default: next_state = IDLE;
+      endcase
+    end
   end
 
 
   //control signals for payload forwarder:
-  assign fwd_enable = (next_state == FORWARD_PAYLOAD);
-  assign drop_enable = (next_state == DROP_PAYLOAD);
+  assign fwd_enable  = (current_state == FORWARD_PAYLOAD);
+  assign drop_enable = (current_state == DROP_PAYLOAD);
 
 endmodule

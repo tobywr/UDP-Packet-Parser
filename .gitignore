@@ -1,0 +1,14 @@
+# cocotb / simulation build artifacts
+tb/sim_build/
+tb/results.xml
+tb/run.log
+*.vcd
+*.fst
+
+# Python
+__pycache__/
+*.pyc
+
+# editor/OS cruft
+.vscode/
+.DS_Store

@@ -34,7 +34,7 @@ module udp_parser_top (
       .clk(clk),
       .rst_n(rst_n),
       .data_valid_in(s_axis_tvalid),
-      .packet_last(packet_done_wire),
+      .packet_last(m_axis_tlast),
       .header_done(header_done),
       .port_match(port_match_wire),
       .checksum_ok(checksum_ok_wire),
@@ -75,6 +75,6 @@ module udp_parser_top (
       .checksum(raw_checksum),
       .header_done(header_done)
   );
-  
+
   assign length = udp_length_wire;
 endmodule
