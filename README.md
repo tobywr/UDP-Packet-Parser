@@ -1,6 +1,6 @@
 # UDP-Packet-Parser with Axi-Stream ports
 
-This is an example of a simple implementation of a UDP packet parser utilizing SystemVerilog. This design parses UDP headers, validates the packet based on checksum (WIP) and destination port, and forwards / drops payloads.
+This is an example of an implementation of a UDP packet parser utilizing SystemVerilog. This design parses UDP headers, validates the packet based on destination port, and forwards / drops payloads. Currently operates on an 8-bit datapath (64-bit WIP).
 
 ### Features
 
@@ -21,7 +21,6 @@ The design consists of four main modules :
     FSM controlling packet pipeline:
     - `IDLE` : Waiting for packet
     - `PARSING_HEADER` : Recieving + Parsing 8-Byte UDP header
-    - `CHECK_HEADER` : Validating port match
     - `FORWARD_PAYLOAD` : Streaming valid payload bytes
     - `DROP_PAYLOAD` : Silently discarding invalid / corrupt payload packets.
   
@@ -38,6 +37,7 @@ The design consists of four main modules :
     Manages payload byte forwarding
 
     - Forwards payload bytes when enabled
+    - Contains skid buffer to register outputs (reducing critical path)
 
 
 ## Top level signals
@@ -69,6 +69,7 @@ This repo also contains a python testbench using cocotb that:
 - Validates backpressure
 - Validates a zero-length payload produces no output
 - Validates packets are dropped if the ports do not match
+- Generates random packets and validates integrity.
 It utilses a golden model (`model.py`) to compare the output from the DUT against.
 
 ### How to run CocoTB testbench
@@ -79,8 +80,12 @@ Only tested on linux (Ubuntu) so far.
 3. enter the tb/ directory
 4. run `make SIM=icarus` to compile all and run.
 OPTIONAL: waveform viewing:
-1. run `make SIM=icarus WAVES=1`
-2. view wave with `gtkwave sim_build/udp_parser_top.fst`
+5. run `make SIM=icarus WAVES=1`
+6. view wave with `gtkwave sim_build/udp_parser_top.fst`
+
+### Implementation Results (Zynq 7000 series)
+200MHz Clock, +0.47ns WNS , out-of-context, 40% I/O budgets.
+Utilization: 78 LUTs, 108FFs.
 
 
 ### Packet Format
@@ -92,10 +97,6 @@ Bytes 4-5: Length (Big-Endian, include both header + payload length)
 Bytes 6-7: Checksum (Big-Endian)
 Bytes 8-N: Payload data
 ```
-
-### Current Limitations
-- Checksum validation currently not implemented , hardcoded to pass (`checksum_ok = 1'b1`)
-
 
 ## Project Structure
 

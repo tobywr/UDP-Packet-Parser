@@ -20,3 +20,18 @@ def parse_udp_packet(packet, target_port):
         "payload": bytes(payload),
         "length": length
     }
+
+def make_packet(src_port, dst_port, payload, checksum=0):
+    length = 8 + len(payload)
+    return [src_port >> 8, src_port & 0xFF, dst_port >> 8, dst_port & 0xFF,
+            length >> 8, length & 0xFF, checksum >> 8, checksum & 0xFF] + list(payload)
+
+def expected_stream(packets, target_port):
+    """golden model for a sequence: (concatenated payload bytes, tlast flags)."""
+    data, lasts = b"", []
+    for p in packets:
+        payload = parse_udp_packet(p, target_port)["payload"]
+        if payload:
+            data += payload
+            lasts += [0] * (len(payload) - 1) + [1]
+    return data, lasts

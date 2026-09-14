@@ -3,24 +3,22 @@ module control_FSM (
     input logic clk,
     input logic rst_n,
 
-    input logic data_valid_in,
-    input logic packet_last,
+    input logic s_beat,
     input logic packet_start,
 
     input logic header_done,
     input logic port_match,
-    input logic checksum_ok,
+    input logic has_payload,
+    input logic packet_done,
 
     output logic parse_enable,  // start capturing input bytes into header
-
-    output logic fwd_enable,  //enable forwarding of payload bytes
-    output logic drop_enable  //enable dropping of payload bytes
+    output logic fwd_enable,    //enable forwarding of payload bytes
+    output logic drop_enable    //enable dropping of payload bytes
 );
 
-  typedef enum logic [2:0] {
+  typedef enum logic [1:0] {
     IDLE,             //waiting for new packet first byte
     PARSING_HEADER,   //recieving + parsing header
-    CHECK_HEADER,     //header is done, check if OK (checksum, port match)
     FORWARD_PAYLOAD,  //forward payload bytes
     DROP_PAYLOAD      //dispose of payload silently
   } state_t;
@@ -28,55 +26,37 @@ module control_FSM (
   state_t current_state, next_state;
 
   always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-      current_state <= IDLE;
-    end else begin
-      current_state <= next_state;  //update state every clock edge
-    end
+    if (!rst_n) current_state <= IDLE;
+    else current_state <= next_state;
   end
 
 
   always_comb begin
     //default
     next_state   = current_state;
-    parse_enable = '0;
+    parse_enable = 1'b0;
 
-    if (packet_start && data_valid_in) begin
+    if (packet_start && s_beat) begin
       next_state   = PARSING_HEADER;
       parse_enable = 1'b1;
     end else begin
+
       case (current_state)
         IDLE: begin
           //packet start handled above.
         end
 
         PARSING_HEADER: begin
-          //check if we've got all 8-byte header
           parse_enable = 1'b1;
           if (header_done) begin
-            next_state = CHECK_HEADER;
+            if (!has_payload) next_state = IDLE;
+            else if (port_match) next_state = FORWARD_PAYLOAD;
+            else next_state = DROP_PAYLOAD;
           end
         end
 
-        CHECK_HEADER: begin
-          // check if port is correct + checksum
-          if (checksum_ok && port_match) begin
-            next_state = FORWARD_PAYLOAD;
-          end else begin
-            next_state = DROP_PAYLOAD;  //drop if either check fails. (ports wrong or data is corrupt)
-          end
-        end
-
-        FORWARD_PAYLOAD: begin
-          if (packet_last) begin
-            next_state = IDLE;
-          end
-        end
-
-        DROP_PAYLOAD: begin
-          if (packet_last) begin
-            next_state = IDLE;
-          end
+        FORWARD_PAYLOAD, DROP_PAYLOAD: begin
+          if (packet_done) next_state = IDLE;
         end
 
         default: next_state = IDLE;
